@@ -178,20 +178,18 @@ def register():
 # =========================================================
 # LOGIN
 # =========================================================
-
 @app.route("/api/login", methods=["POST"])
 def login():
 
     data = request.get_json()
 
-    if not data:
-        return jsonify({
-            "success": False,
-            "message": "No data received"
-        }), 400
-
     username = data.get("username")
     password = data.get("password")
+
+    print("====================================")
+    print("LOGIN")
+    print("Username:", username)
+    print("====================================")
 
     if not username or not password:
         return jsonify({
@@ -206,6 +204,8 @@ def login():
             "success": False,
             "message": "ไม่สามารถเชื่อมต่อ Database ได้"
         }), 500
+
+    cursor = None
 
     try:
 
@@ -224,18 +224,21 @@ def login():
 
         user = cursor.fetchone()
 
+        # ไม่พบ Username
         if user is None:
             return jsonify({
                 "success": False,
                 "message": "ไม่พบ Username นี้"
             }), 401
 
-        # ตรวจสอบ Password
+        # Password ไม่ถูกต้อง
         if user["password"] != password:
             return jsonify({
                 "success": False,
                 "message": "Password ไม่ถูกต้อง"
             }), 401
+
+        print("LOGIN SUCCESS:", user["id"])
 
         return jsonify({
             "success": True,
@@ -250,6 +253,8 @@ def login():
 
     except Exception as e:
 
+        print("LOGIN ERROR:", e)
+
         return jsonify({
             "success": False,
             "message": "เกิดข้อผิดพลาด",
@@ -258,9 +263,10 @@ def login():
 
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor is not None:
+            cursor.close()
 
+        connection.close()
 
 # =========================================================
 # GET ALL USERS
