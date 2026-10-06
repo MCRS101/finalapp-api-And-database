@@ -648,7 +648,7 @@ def add_household():
     except Exception as e:
 
         print('====================================')
-        print('ADD HOUSEHOLD ERROR')
+        print('ADD HOUSEHOLD ERRORR')
         print(e)
         print('====================================')
 
