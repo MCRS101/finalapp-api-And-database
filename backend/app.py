@@ -517,86 +517,84 @@ def get_household(house_id):
 # ADD HOUSEHOLD
 # =========================================================
 
-@app.route("/api/households", methods=["POST"])
+@app.route('/api/households', methods=['POST'])
 def add_household():
 
-    data = request.get_json()
+    try:
+        house_number = request.form.get('house_number')
+        moo = request.form.get('moo')
+        village = request.form.get('village')
+        subdistrict = request.form.get('subdistrict')
+        district = request.form.get('district')
+        province = request.form.get('province')
+        owner_name = request.form.get('owner_name')
 
-    if not data:
-        return jsonify({
-            "success": False,
-            "message": "ไม่พบข้อมูล"
-        }), 400
+        latitude = request.form.get('latitude')
+        longitude = request.form.get('longitude')
 
-    house_number = data.get("house_number")
-    moo = data.get("moo")
-    village = data.get("village")
-    subdistrict = data.get("subdistrict")
-    district = data.get("district")
-    province = data.get("province")
-    owner_name = data.get("owner_name")
-    latitude = data.get("latitude")
-    longitude = data.get("longitude")
-    image = request.files.get('image')
-    print("====================================")
-    print("ADD HOUSEHOLD")
-    print("House Number:", house_number)
-    print("Moo:", moo)
-    print("Village:", village)
-    print("Owner:", owner_name)
-    print("Latitude:", latitude)
-    print("Longitude:", longitude)
-    print("====================================")
+        image = request.files.get('image')
 
-    # =====================================================
-    # CHECK REQUIRED DATA
-    # =====================================================
+        print('====================================')
+        print('ADD HOUSEHOLD')
+        print('house_number:', house_number)
+        print('moo:', moo)
+        print('village:', village)
+        print('subdistrict:', subdistrict)
+        print('district:', district)
+        print('province:', province)
+        print('owner_name:', owner_name)
+        print('latitude:', latitude)
+        print('longitude:', longitude)
+        print('image:', image)
+        print('====================================')
 
-    if not house_number:
-        return jsonify({
-            "success": False,
-            "message": "กรุณากรอกบ้านเลขที่"
-        }), 400
+        # -----------------------------
+        # ตรวจสอบข้อมูล
+        # -----------------------------
 
-    if latitude is None or longitude is None:
-        return jsonify({
-            "success": False,
-            "message": "กรุณาระบุพิกัด Latitude และ Longitude"
-        }), 400
-        
-    if image is None:
+        if not house_number:
+            return jsonify({
+                'success': False,
+                'message': 'กรุณากรอกบ้านเลขที่'
+            }), 400
+
+        if not latitude or not longitude:
+            return jsonify({
+                'success': False,
+                'message': 'กรุณาระบุพิกัด'
+            }), 400
+
+        if image is None:
             return jsonify({
                 'success': False,
                 'message': 'กรุณาเพิ่มรูปครัวเรือน'
             }), 400
-            
-    # =====================================================
-    # UPLOAD CLOUDINARY
-    # =====================================================
 
-    upload_result = upload_image(image)
+        # -----------------------------
+        # Upload รูปไป Cloudinary
+        # -----------------------------
 
-    image_path = upload_result['image_url']
-    
-    # =====================================================
-    # DATABASE
-    # =====================================================
+        upload_result = upload_image(image)
 
-    connection = get_connection()
+        image_path = upload_result['image_url']
 
-    if connection is None:
-        return jsonify({
-            "success": False,
-            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
-        }), 500
+        print('Cloudinary URL:', image_path)
 
-    cursor = None
+        # -----------------------------
+        # Database
+        # -----------------------------
 
-    try:
+        connection = get_connection()
+
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message': 'ไม่สามารถเชื่อมต่อ Database'
+            }), 500
 
         cursor = connection.cursor()
 
-        cursor.execute("""
+        sql = """
             INSERT INTO households (
                 house_number,
                 moo,
@@ -610,17 +608,12 @@ def add_household():
                 image_path
             )
             VALUES (
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s,
-                %s
+                %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s
             )
-        """, (
+        """
+
+        values = (
             house_number,
             moo,
             village,
@@ -628,53 +621,41 @@ def add_household():
             district,
             province,
             owner_name,
-            latitude,
-            longitude,
+            float(latitude),
+            float(longitude),
             image_path,
-        ))
+        )
+
+        cursor.execute(sql, values)
 
         connection.commit()
 
         house_id = cursor.lastrowid
 
-        print("ADD HOUSEHOLD SUCCESS:", house_id)
-
-        return jsonify({
-            "success": True,
-            "message": "เพิ่มข้อมูลครัวเรือนสำเร็จ",
-            "household": {
-                "id": house_id,
-                "house_number": house_number,
-                "moo": moo,
-                "village": village,
-                "subdistrict": subdistrict,
-                "district": district,
-                "province": province,
-                "owner_name": owner_name,
-                "latitude": latitude,
-                "longitude": longitude
-            }
-        }), 201
-    
-    except Exception as e:
-
-        connection.rollback()
-
-        print("ADD HOUSEHOLD ERROR:", e)
-
-        return jsonify({
-            "success": False,
-            "message": "ไม่สามารถเพิ่มข้อมูลครัวเรือนได้",
-            "error": str(e)
-        }), 500
-
-    finally:
-
-        if cursor is not None:
-            cursor.close()
-
+        cursor.close()
         connection.close()
 
+        print('HOUSEHOLD INSERT SUCCESS')
+        print('ID:', house_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'เพิ่มข้อมูลครัวเรือนสำเร็จ',
+            'id': house_id,
+            'image_path': image_path
+        }), 201
+
+    except Exception as e:
+
+        print('====================================')
+        print('ADD HOUSEHOLD ERROR')
+        print(e)
+        print('====================================')
+
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
 
 # =========================================================
 # UPDATE HOUSEHOLD
