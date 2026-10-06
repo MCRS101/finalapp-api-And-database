@@ -374,7 +374,493 @@ def get_user(user_id):
 
         cursor.close()
         connection.close()
+# =========================================================
+# HOUSEHOLD
+# =========================================================
 
+
+# =========================================================
+# GET ALL HOUSEHOLDS
+# =========================================================
+
+@app.route("/api/households", methods=["GET"])
+def get_households():
+
+    connection = get_connection()
+
+    if connection is None:
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
+        }), 500
+
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                id,
+                house_number,
+                moo,
+                village,
+                subdistrict,
+                district,
+                province,
+                owner_name,
+                latitude,
+                longitude,
+                image_path,
+                created_at
+            FROM households
+            ORDER BY id DESC
+        """)
+
+        households = cursor.fetchall()
+
+        return jsonify({
+            "success": True,
+            "households": households
+        }), 200
+
+    except Exception as e:
+
+        print("GET HOUSEHOLDS ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถโหลดข้อมูลครัวเรือนได้",
+            "error": str(e)
+        }), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        connection.close()
+
+
+# =========================================================
+# GET HOUSEHOLD BY ID
+# =========================================================
+
+@app.route("/api/households/<int:house_id>", methods=["GET"])
+def get_household(house_id):
+
+    connection = get_connection()
+
+    if connection is None:
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
+        }), 500
+
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                id,
+                house_number,
+                moo,
+                village,
+                subdistrict,
+                district,
+                province,
+                owner_name,
+                latitude,
+                longitude,
+                image_path,
+                created_at
+            FROM households
+            WHERE id = %s
+        """, (house_id,))
+
+        household = cursor.fetchone()
+
+        if household is None:
+            return jsonify({
+                "success": False,
+                "message": "ไม่พบข้อมูลครัวเรือน"
+            }), 404
+
+        return jsonify({
+            "success": True,
+            "household": household
+        }), 200
+
+    except Exception as e:
+
+        print("GET HOUSEHOLD ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "เกิดข้อผิดพลาด",
+            "error": str(e)
+        }), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        connection.close()
+
+
+# =========================================================
+# ADD HOUSEHOLD
+# =========================================================
+
+@app.route("/api/households", methods=["POST"])
+def add_household():
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({
+            "success": False,
+            "message": "ไม่พบข้อมูล"
+        }), 400
+
+    house_number = data.get("house_number")
+    moo = data.get("moo")
+    village = data.get("village")
+    subdistrict = data.get("subdistrict")
+    district = data.get("district")
+    province = data.get("province")
+    owner_name = data.get("owner_name")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+
+    print("====================================")
+    print("ADD HOUSEHOLD")
+    print("House Number:", house_number)
+    print("Moo:", moo)
+    print("Village:", village)
+    print("Owner:", owner_name)
+    print("Latitude:", latitude)
+    print("Longitude:", longitude)
+    print("====================================")
+
+    # =====================================================
+    # CHECK REQUIRED DATA
+    # =====================================================
+
+    if not house_number:
+        return jsonify({
+            "success": False,
+            "message": "กรุณากรอกบ้านเลขที่"
+        }), 400
+
+    if latitude is None or longitude is None:
+        return jsonify({
+            "success": False,
+            "message": "กรุณาระบุพิกัด Latitude และ Longitude"
+        }), 400
+
+    # =====================================================
+    # DATABASE
+    # =====================================================
+
+    connection = get_connection()
+
+    if connection is None:
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
+        }), 500
+
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute("""
+            INSERT INTO households (
+                house_number,
+                moo,
+                village,
+                subdistrict,
+                district,
+                province,
+                owner_name,
+                latitude,
+                longitude
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+        """, (
+            house_number,
+            moo,
+            village,
+            subdistrict,
+            district,
+            province,
+            owner_name,
+            latitude,
+            longitude
+        ))
+
+        connection.commit()
+
+        house_id = cursor.lastrowid
+
+        print("ADD HOUSEHOLD SUCCESS:", house_id)
+
+        return jsonify({
+            "success": True,
+            "message": "เพิ่มข้อมูลครัวเรือนสำเร็จ",
+            "household": {
+                "id": house_id,
+                "house_number": house_number,
+                "moo": moo,
+                "village": village,
+                "subdistrict": subdistrict,
+                "district": district,
+                "province": province,
+                "owner_name": owner_name,
+                "latitude": latitude,
+                "longitude": longitude
+            }
+        }), 201
+
+    except Exception as e:
+
+        connection.rollback()
+
+        print("ADD HOUSEHOLD ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเพิ่มข้อมูลครัวเรือนได้",
+            "error": str(e)
+        }), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        connection.close()
+
+
+# =========================================================
+# UPDATE HOUSEHOLD
+# =========================================================
+
+@app.route("/api/households/<int:house_id>", methods=["PUT"])
+def update_household(house_id):
+
+    data = request.get_json()
+
+    if not data:
+        return jsonify({
+            "success": False,
+            "message": "ไม่พบข้อมูล"
+        }), 400
+
+    house_number = data.get("house_number")
+    moo = data.get("moo")
+    village = data.get("village")
+    subdistrict = data.get("subdistrict")
+    district = data.get("district")
+    province = data.get("province")
+    owner_name = data.get("owner_name")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+
+    if not house_number:
+        return jsonify({
+            "success": False,
+            "message": "กรุณากรอกบ้านเลขที่"
+        }), 400
+
+    if latitude is None or longitude is None:
+        return jsonify({
+            "success": False,
+            "message": "กรุณาระบุพิกัด Latitude และ Longitude"
+        }), 400
+
+    connection = get_connection()
+
+    if connection is None:
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
+        }), 500
+
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        # =================================================
+        # CHECK HOUSEHOLD
+        # =================================================
+
+        cursor.execute(
+            "SELECT id FROM households WHERE id = %s",
+            (house_id,)
+        )
+
+        existing = cursor.fetchone()
+
+        if existing is None:
+            return jsonify({
+                "success": False,
+                "message": "ไม่พบข้อมูลครัวเรือน"
+            }), 404
+
+        # =================================================
+        # UPDATE
+        # =================================================
+
+        cursor.execute("""
+            UPDATE households
+            SET
+                house_number = %s,
+                moo = %s,
+                village = %s,
+                subdistrict = %s,
+                district = %s,
+                province = %s,
+                owner_name = %s,
+                latitude = %s,
+                longitude = %s
+            WHERE id = %s
+        """, (
+            house_number,
+            moo,
+            village,
+            subdistrict,
+            district,
+            province,
+            owner_name,
+            latitude,
+            longitude,
+            house_id
+        ))
+
+        connection.commit()
+
+        print("UPDATE HOUSEHOLD SUCCESS:", house_id)
+
+        return jsonify({
+            "success": True,
+            "message": "แก้ไขข้อมูลครัวเรือนสำเร็จ"
+        }), 200
+
+    except Exception as e:
+
+        connection.rollback()
+
+        print("UPDATE HOUSEHOLD ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถแก้ไขข้อมูลครัวเรือนได้",
+            "error": str(e)
+        }), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        connection.close()
+
+
+# =========================================================
+# DELETE HOUSEHOLD
+# =========================================================
+
+@app.route("/api/households/<int:house_id>", methods=["DELETE"])
+def delete_household(house_id):
+
+    connection = get_connection()
+
+    if connection is None:
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
+        }), 500
+
+    cursor = None
+
+    try:
+
+        cursor = connection.cursor()
+
+        # =================================================
+        # CHECK HOUSEHOLD
+        # =================================================
+
+        cursor.execute(
+            "SELECT id FROM households WHERE id = %s",
+            (house_id,)
+        )
+
+        existing = cursor.fetchone()
+
+        if existing is None:
+            return jsonify({
+                "success": False,
+                "message": "ไม่พบข้อมูลครัวเรือน"
+            }), 404
+
+        # =================================================
+        # DELETE
+        # =================================================
+
+        cursor.execute(
+            "DELETE FROM households WHERE id = %s",
+            (house_id,)
+        )
+
+        connection.commit()
+
+        print("DELETE HOUSEHOLD SUCCESS:", house_id)
+
+        return jsonify({
+            "success": True,
+            "message": "ลบข้อมูลครัวเรือนสำเร็จ"
+        }), 200
+
+    except Exception as e:
+
+        connection.rollback()
+
+        print("DELETE HOUSEHOLD ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": "ไม่สามารถลบข้อมูลครัวเรือนได้",
+            "error": str(e)
+        }), 500
+
+    finally:
+
+        if cursor is not None:
+            cursor.close()
+
+        connection.close()
 
 # =========================================================
 # RUN SERVER
