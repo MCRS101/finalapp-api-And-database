@@ -661,127 +661,177 @@ def add_household():
 # UPDATE HOUSEHOLD
 # =========================================================
 
-@app.route("/api/households/<int:house_id>", methods=["PUT"])
-def update_household(house_id):
-
-    data = request.get_json()
-
-    if not data:
-        return jsonify({
-            "success": False,
-            "message": "ไม่พบข้อมูล"
-        }), 400
-
-    house_number = data.get("house_number")
-    moo = data.get("moo")
-    village = data.get("village")
-    subdistrict = data.get("subdistrict")
-    district = data.get("district")
-    province = data.get("province")
-    owner_name = data.get("owner_name")
-    latitude = data.get("latitude")
-    longitude = data.get("longitude")
-
-    if not house_number:
-        return jsonify({
-            "success": False,
-            "message": "กรุณากรอกบ้านเลขที่"
-        }), 400
-
-    if latitude is None or longitude is None:
-        return jsonify({
-            "success": False,
-            "message": "กรุณาระบุพิกัด Latitude และ Longitude"
-        }), 400
-
-    connection = get_connection()
-
-    if connection is None:
-        return jsonify({
-            "success": False,
-            "message": "ไม่สามารถเชื่อมต่อ Database ได้"
-        }), 500
-
-    cursor = None
+@app.route('/api/households/<int:id>', methods=['PUT'])
+def update_household(id):
 
     try:
+        house_number = request.form.get(
+            'house_number'
+        )
+
+        moo = request.form.get('moo')
+
+        village = request.form.get(
+            'village'
+        )
+
+        subdistrict = request.form.get(
+            'subdistrict'
+        )
+
+        district = request.form.get(
+            'district'
+        )
+
+        province = request.form.get(
+            'province'
+        )
+
+        owner_name = request.form.get(
+            'owner_name'
+        )
+
+        latitude = request.form.get(
+            'latitude'
+        )
+
+        longitude = request.form.get(
+            'longitude'
+        )
+
+        # รูปใหม่ ถ้ามี
+        image = request.files.get(
+            'image'
+        )
+
+        connection = get_connection()
+
+        if connection is None:
+            return jsonify({
+                'success': False,
+                'message':
+                    'ไม่สามารถเชื่อมต่อ Database'
+            }), 500
 
         cursor = connection.cursor()
 
-        # =================================================
-        # CHECK HOUSEHOLD
-        # =================================================
+        # =====================================================
+        # ถ้ามีรูปใหม่
+        # =====================================================
+
+        if image is not None:
+
+            upload_result = upload_image(
+                image,
+                folder='final_app/households'
+            )
+
+            image_path = upload_result[
+                'image_url'
+            ]
+
+            sql = """
+                UPDATE households
+                SET
+                    house_number = %s,
+                    moo = %s,
+                    village = %s,
+                    subdistrict = %s,
+                    district = %s,
+                    province = %s,
+                    owner_name = %s,
+                    latitude = %s,
+                    longitude = %s,
+                    image_path = %s
+                WHERE id = %s
+            """
+
+            values = (
+                house_number,
+                moo,
+                village,
+                subdistrict,
+                district,
+                province,
+                owner_name,
+                float(latitude),
+                float(longitude),
+                image_path,
+                id
+            )
+
+        # =====================================================
+        # ไม่มีรูปใหม่ → ใช้รูปเดิม
+        # =====================================================
+
+        else:
+
+            sql = """
+                UPDATE households
+                SET
+                    house_number = %s,
+                    moo = %s,
+                    village = %s,
+                    subdistrict = %s,
+                    district = %s,
+                    province = %s,
+                    owner_name = %s,
+                    latitude = %s,
+                    longitude = %s
+                WHERE id = %s
+            """
+
+            values = (
+                house_number,
+                moo,
+                village,
+                subdistrict,
+                district,
+                province,
+                owner_name,
+                float(latitude),
+                float(longitude),
+                id
+            )
 
         cursor.execute(
-            "SELECT id FROM households WHERE id = %s",
-            (house_id,)
+            sql,
+            values
         )
-
-        existing = cursor.fetchone()
-
-        if existing is None:
-            return jsonify({
-                "success": False,
-                "message": "ไม่พบข้อมูลครัวเรือน"
-            }), 404
-
-        # =================================================
-        # UPDATE
-        # =================================================
-
-        cursor.execute("""
-            UPDATE households
-            SET
-                house_number = %s,
-                moo = %s,
-                village = %s,
-                subdistrict = %s,
-                district = %s,
-                province = %s,
-                owner_name = %s,
-                latitude = %s,
-                longitude = %s
-            WHERE id = %s
-        """, (
-            house_number,
-            moo,
-            village,
-            subdistrict,
-            district,
-            province,
-            owner_name,
-            latitude,
-            longitude,
-            house_id
-        ))
 
         connection.commit()
 
-        print("UPDATE HOUSEHOLD SUCCESS:", house_id)
+        if cursor.rowcount == 0:
+
+            cursor.close()
+            connection.close()
+
+            return jsonify({
+                'success': False,
+                'message':
+                    'ไม่พบข้อมูลครัวเรือน'
+            }), 404
+
+        cursor.close()
+        connection.close()
 
         return jsonify({
-            "success": True,
-            "message": "แก้ไขข้อมูลครัวเรือนสำเร็จ"
-        }), 200
+            'success': True,
+            'message':
+                'แก้ไขข้อมูลครัวเรือนสำเร็จ'
+        })
 
     except Exception as e:
 
-        connection.rollback()
-
-        print("UPDATE HOUSEHOLD ERROR:", e)
+        print(
+            'UPDATE HOUSEHOLD ERROR:',
+            e
+        )
 
         return jsonify({
-            "success": False,
-            "message": "ไม่สามารถแก้ไขข้อมูลครัวเรือนได้",
-            "error": str(e)
+            'success': False,
+            'message': str(e)
         }), 500
-
-    finally:
-
-        if cursor is not None:
-            cursor.close()
-
-        connection.close()
 
 
 # =========================================================

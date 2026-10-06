@@ -20,14 +20,22 @@ cloudinary.config(
 # UPLOAD IMAGE
 # =========================================================
 
-def upload_image(image):
+
+def upload_image(
+    image,
+    folder="final_app/users"
+):
+
     result = cloudinary.uploader.upload(
         image,
-        folder="final_app/users",
+        folder=folder,
         resource_type="image",
     )
 
     return {
-        "public_id": result["public_id"],
-        "image_url": result["secure_url"],
+        "public_id":
+            result["public_id"],
+
+        "image_url":
+            result["secure_url"],
     }
