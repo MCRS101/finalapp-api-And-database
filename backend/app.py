@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from database import get_connection, init_database
-
+from google_drive import upload_image
 # =========================================================
 # FLASK
 # =========================================================
@@ -41,24 +41,43 @@ def index():
 @app.route("/api/register", methods=["POST"])
 def register():
 
-    data = request.get_json()
+    # =========================================
+    # รับข้อมูลจาก Flutter
+    # =========================================
 
-    if not data:
-        return jsonify({
-            "success": False,
-            "message": "No data received"
-        }), 400
+    name = request.form.get("name")
+    username = request.form.get("username")
+    password = request.form.get("password")
 
-    name = data.get("name")
-    username = data.get("username")
-    password = data.get("password")
+    # รับรูปภาพ
+    image = request.files.get("image")
 
+    print("====================================")
+    print("REGISTER")
+    print("Name:", name)
+    print("Username:", username)
+    print("Image:", image.filename if image else None)
+    print("====================================")
+
+    # =========================================
     # ตรวจสอบข้อมูล
+    # =========================================
+
     if not name or not username or not password:
         return jsonify({
             "success": False,
             "message": "กรุณากรอกข้อมูลให้ครบ"
         }), 400
+
+    if image is None:
+        return jsonify({
+            "success": False,
+            "message": "กรุณาเลือกรูปภาพ"
+        }), 400
+
+    # =========================================
+    # เชื่อมต่อ Database
+    # =========================================
 
     connection = get_connection()
 
@@ -68,38 +87,83 @@ def register():
             "message": "ไม่สามารถเชื่อมต่อ Database ได้"
         }), 500
 
+    cursor = None
+
     try:
 
         cursor = connection.cursor(dictionary=True)
 
-        # ตรวจสอบ username ซ้ำ
+        # =====================================
+        # ตรวจสอบ Username ซ้ำ
+        # =====================================
+
         cursor.execute(
-            "SELECT id FROM users WHERE username = %s",
+            """
+            SELECT id
+            FROM users
+            WHERE username = %s
+            """,
             (username,)
         )
 
         existing_user = cursor.fetchone()
 
         if existing_user:
+
             return jsonify({
                 "success": False,
                 "message": "Username นี้มีอยู่แล้ว"
             }), 409
 
-        # เพิ่มผู้ใช้
-        cursor.execute("""
+        # =====================================
+        # Upload รูปไป Google Drive
+        # =====================================
+
+        print("Uploading image to Google Drive...")
+
+        drive_result = upload_image(image)
+
+        image_url = drive_result["image_url"]
+
+        print("Google Drive upload success")
+        print("File ID:", drive_result["file_id"])
+        print("Image URL:", image_url)
+
+        # =====================================
+        # บันทึก User ลง MySQL
+        # =====================================
+
+        cursor.execute(
+            """
             INSERT INTO users
-            (name, username, password)
-            VALUES (%s, %s, %s)
-        """, (
-            name,
-            username,
-            password
-        ))
+            (
+                name,
+                username,
+                password,
+                image_path
+            )
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                name,
+                username,
+                password,
+                image_url
+            )
+        )
 
         connection.commit()
 
         user_id = cursor.lastrowid
+
+        print("====================================")
+        print("REGISTER SUCCESS")
+        print("User ID:", user_id)
+        print("====================================")
+
+        # =====================================
+        # Response กลับ Flutter
+        # =====================================
 
         return jsonify({
             "success": True,
@@ -107,13 +171,19 @@ def register():
             "user": {
                 "id": user_id,
                 "name": name,
-                "username": username
+                "username": username,
+                "image_path": image_url
             }
         }), 201
 
     except Exception as e:
 
         connection.rollback()
+
+        print("====================================")
+        print("REGISTER ERROR")
+        print(e)
+        print("====================================")
 
         return jsonify({
             "success": False,
@@ -123,9 +193,10 @@ def register():
 
     finally:
 
-        cursor.close()
-        connection.close()
+        if cursor is not None:
+            cursor.close()
 
+        connection.close()
 
 # =========================================================
 # LOGIN
