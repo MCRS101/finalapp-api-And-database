@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from database import get_connection, init_database
-from backend.cloudinary_upload import upload_image
+
 from cloudinary_upload import upload_image
 # =========================================================
 # FLASK
