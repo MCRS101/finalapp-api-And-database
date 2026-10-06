@@ -537,7 +537,7 @@ def add_household():
     owner_name = data.get("owner_name")
     latitude = data.get("latitude")
     longitude = data.get("longitude")
-
+    image = request.files.get('image')
     print("====================================")
     print("ADD HOUSEHOLD")
     print("House Number:", house_number)
@@ -563,7 +563,21 @@ def add_household():
             "success": False,
             "message": "กรุณาระบุพิกัด Latitude และ Longitude"
         }), 400
+        
+    if image is None:
+            return jsonify({
+                'success': False,
+                'message': 'กรุณาเพิ่มรูปครัวเรือน'
+            }), 400
+            
+    # =====================================================
+    # UPLOAD CLOUDINARY
+    # =====================================================
 
+    upload_result = upload_image(image)
+
+    image_path = upload_result['image_url']
+    
     # =====================================================
     # DATABASE
     # =====================================================
@@ -592,7 +606,8 @@ def add_household():
                 province,
                 owner_name,
                 latitude,
-                longitude
+                longitude,
+                image_path
             )
             VALUES (
                 %s,
@@ -614,7 +629,8 @@ def add_household():
             province,
             owner_name,
             latitude,
-            longitude
+            longitude,
+            image_path,
         ))
 
         connection.commit()
@@ -639,7 +655,7 @@ def add_household():
                 "longitude": longitude
             }
         }), 201
-
+    
     except Exception as e:
 
         connection.rollback()
